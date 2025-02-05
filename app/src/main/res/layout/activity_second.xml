@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Área de dibujo -->
+
+    <!-- Botón para borrar el dibujo -->
+
+    <epautec.atlas.descriptoresapp.DrawingView
+        android:id="@+id/drawingView"
+        android:layout_width="270dp"
+        android:layout_height="270dp"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="23dp"
+        android:layout_marginEnd="77dp"
+        android:background="#FFFFFF" />
+
+    <Button
+        android:id="@+id/clearButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Borrar"
+        android:layout_below="@id/drawingView"
+        android:layout_marginTop="10dp"
+        android:layout_alignParentStart="true"/>
+
+    <!-- Botón para procesar el dibujo -->
+    <Button
+        android:id="@+id/processButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Procesar"
+        android:layout_below="@id/drawingView"
+        android:layout_marginTop="10dp"
+        android:layout_alignParentEnd="true"/>
+
+    <!-- ImageView para mostrar la imagen procesada -->
+
+    <ImageView
+        android:id="@+id/processedImageView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/processButton"
+        android:layout_marginTop="52dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_launcher_background" />
+
+    <ImageView
+        android:id="@+id/originalImageView"
+        android:layout_width="219dp"
+        android:layout_height="131dp"
+        android:layout_below="@+id/clearButton"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="220dp"
+        android:layout_marginEnd="98dp"
+        android:contentDescription="Original Image" />
+
+
+</RelativeLayout>

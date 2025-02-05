@@ -2,6 +2,7 @@ package epautec.atlas.descriptoresapp;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -26,7 +27,6 @@ public class MainActivity extends AppCompatActivity {
 
     // Declaración del método nativo
     public native String MomentsHU(byte[] imageData, String csvContent);
-    public native String MomentsHUTEST(byte[] imageData, String csvContent);
     public native String MomentsZernike(byte[] imageData, String csvContent);
 
     private DrawingView drawingView;
@@ -43,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
         button = findViewById(R.id.button);
         resultadoTextView = findViewById(R.id.sample_text);
         drawingView = findViewById(R.id.drawingView);
+        Button button2 = findViewById(R.id.btnOpenSecondActivity);
 
         Button clearButton = findViewById(R.id.clearButton);
         clearButton.setOnClickListener(v -> drawingView.clearCanvas());
@@ -56,6 +57,15 @@ public class MainActivity extends AppCompatActivity {
                 clasificarConMomentosZernike();
             } else {
                 resultadoTextView.setText("Seleccione un descriptor");
+            }
+        });
+        button2.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Crear un Intent para abrir la SecondActivity
+                Intent intent = new Intent(MainActivity.this, SecondActivity.class);
+                // Iniciar la actividad
+                startActivity(intent);
             }
         });
     }
@@ -93,7 +103,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Llamar al método nativo con la imagen y el contenido del CSV
         String category = MomentsHU(imageData, csvContent);
-
         // Mostrar el resultado
         resultadoTextView.setText("Categoría: " + category);
     }
@@ -120,6 +129,5 @@ public class MainActivity extends AppCompatActivity {
 
         // Mostrar el resultado
         resultadoTextView.setText("Categoría: " + category);
-
     }
 }

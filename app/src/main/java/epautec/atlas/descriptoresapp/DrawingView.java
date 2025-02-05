@@ -9,6 +9,7 @@ package epautec.atlas.descriptoresapp;
         import android.util.AttributeSet;
         import android.view.MotionEvent;
         import android.view.View;
+        import android.util.Log;
 
         import java.io.ByteArrayOutputStream;
 
@@ -57,9 +58,11 @@ public class DrawingView extends View {
     public Bitmap getBitmap() {
         Bitmap bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
-        draw(canvas); // Dibuja el contenido actual en el bitmap
+        canvas.drawColor(Color.WHITE);  // Asegura que el fondo sea blanco
+        draw(canvas); // Dibuja el contenido en el bitmap
         return bitmap;
     }
+
 
     public byte[] getDrawingAsByteArray() {
         Bitmap bitmap = Bitmap.createBitmap(getWidth(), getHeight(), Bitmap.Config.ARGB_8888);
@@ -68,6 +71,7 @@ public class DrawingView extends View {
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream); // Convertir a PNG en memoria
+        Log.d("DrawingView", "Bitmap width: " + bitmap.getWidth() + ", height: " + bitmap.getHeight());
         return stream.toByteArray();
     }
 

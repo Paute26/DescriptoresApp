@@ -16,28 +16,18 @@
 using namespace cv;
 using namespace std;
 
-//----------------------------------------MOMENTOS HU-----------------------------------------------
-
+//-------------------------------MOMENTOS HU-----------------------------------------------
 Mat preprocessImage(const Mat& image) {
-    Mat grayImage, binaryImage, edges, dilatedEdges, filledImage;
-    // Convertir la imagen a escala de grises (si no lo está ya)
-    if (image.channels() == 3) {
-        cvtColor(image, grayImage, COLOR_BGR2GRAY);
-    } else {
-        grayImage = image;
-    }
-    // Binarizar la imagen (umbralización)
-    // Utilizamos un valor de umbral fijo o adaptativo, dependiendo de la situación
-    threshold(grayImage, binaryImage, 128, 255, THRESH_BINARY);
+    Mat edges, dilatedEdges, filledImage;
 
     // Procesamiento de bordes con Canny
-    Canny(binaryImage, edges, 50, 150);
-    dilate(edges, dilatedEdges, getStructuringElement(MORPH_RECT, Size(5, 5)));
+    Canny(image, edges, 50, 150);
 
-
+    // Dilatar los bordes para hacerlos más visibles
     Mat kernel = getStructuringElement(MORPH_RECT, Size(5, 5));
     dilate(edges, dilatedEdges, kernel);
 
+    // Encontrar contornos en la imagen dilatada
     vector<vector<Point>> contours;
     findContours(dilatedEdges, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
@@ -48,15 +38,67 @@ Mat preprocessImage(const Mat& image) {
     return filledImage;
 }
 
-vector<double> calculateHuMoments(const Mat& image) {
+vector<double> calculateHuMoments(const cv::Mat& image) {
+    // Calcular los momentos de la imagen
     Mat binaryImage;
     threshold(image, binaryImage, 128, 255, THRESH_BINARY);
+    cv::Moments moments = cv::moments(binaryImage);
+    std::vector<double> huMoments(7);
 
-    Moments moments = cv::moments(binaryImage);
-    vector<double> huMoments(7);
-    HuMoments(moments, huMoments.data());
+    // Calcular los Momentos Hu
+    cv::HuMoments(moments, huMoments.data());
+
+    // Agregar log para cada momento Hu
+    LOGI("Momento Hu 1: %f", huMoments[0]);
+    LOGI("Momento Hu 2: %f", huMoments[1]);
+    LOGI("Momento Hu 3: %f", huMoments[2]);
+    LOGI("Momento Hu 4: %f", huMoments[3]);
+    LOGI("Momento Hu 5: %f", huMoments[4]);
+    LOGI("Momento Hu 6: %f", huMoments[5]);
+    LOGI("Momento Hu 7: %f", huMoments[6]);
 
     return huMoments;
+}
+
+void normalizarMomentosHu(vector<double>& hu) {
+    for (int i = 0; i < 7; i++) {
+        if (hu[i] != 0)
+            hu[i] = -1 * copysign(1.0, hu[i]) * log10(abs(hu[i]));
+        else
+            hu[i] = 0;
+    }
+}
+
+#include <vector>
+#include <cmath>  // Para std::sqrt y std::accumulate
+
+vector<double> standardizeHuMoments(const vector<double>& huMoments) {
+    // Calcular la media de los momentos Hu de la imagen
+    double mean = 0.0;
+    for (size_t i = 0; i < huMoments.size(); i++) {
+        mean += huMoments[i];
+    }
+    mean /= huMoments.size();
+
+    // Calcular la desviación estándar de los momentos Hu de la imagen
+    double stdDev = 0.0;
+    for (size_t i = 0; i < huMoments.size(); i++) {
+        stdDev += std::pow(huMoments[i] - mean, 2);
+    }
+    stdDev = std::sqrt(stdDev / huMoments.size());
+
+    // Estandarizar los Momentos Hu de la nueva imagen
+    vector<double> standardizedHuMoments(huMoments.size());
+    for (size_t i = 0; i < huMoments.size(); i++) {
+        // Estandarizar: (valor - media) / desviación estándar
+        if (stdDev != 0) {  // Para evitar división por cero
+            standardizedHuMoments[i] = (huMoments[i] - mean) / stdDev;
+        } else {
+            standardizedHuMoments[i] = huMoments[i] - mean;  // Si la desviación estándar es 0, solo restamos la media
+        }
+    }
+
+    return standardizedHuMoments;
 }
 
 double euclideanDistance(const vector<double>& a, const vector<double>& b) {
@@ -66,30 +108,9 @@ double euclideanDistance(const vector<double>& a, const vector<double>& b) {
     }
     return sqrt(sum);
 }
-/*
-void loadTrainedHuMoments(const string& csvContent, vector<vector<double>>& trainedHuMoments, vector<string>& trainedLabels) {
-    stringstream ss(csvContent);
-    string line;
-    getline(ss, line); // Saltar la cabecera
-    LOGI("%s", "---csv---");
-    while (getline(ss, line)) {
-        stringstream lineStream(line);
-        vector<double> huMoments;
-        string value, label;
-
-        for (int i = 0; i < 7; i++) {
-            getline(lineStream, value, ',');
-            huMoments.push_back(stod(value));
-        }
-        getline(lineStream, label, ','); // Leer la categoría
-
-        trainedHuMoments.push_back(huMoments);
-        trainedLabels.push_back(label);
-    }
-}
-*/
 
 void loadTrainedHuMoments(const string& csvContent, vector<vector<double>>& trainedHuMoments, vector<string>& trainedLabels) {
+    setlocale(LC_NUMERIC, "C");  // Asegura el formato correcto de números
     stringstream ss(csvContent);
     string line;
     getline(ss, line); // Saltar la cabecera
@@ -129,34 +150,43 @@ void loadTrainedHuMoments(const string& csvContent, vector<vector<double>>& trai
 string classifyImage(const Mat& newImage, const vector<vector<double>>& trainedHuMoments, const vector<string>& trainedLabels) {
     Mat processedImage = preprocessImage(newImage);
     vector<double> newHuMoments = calculateHuMoments(processedImage);
-/*
-    // Imprimir Momentos Hu de la imagen nueva en Logcat
-    string logMessage = "Momentos Hu de la imagen nueva: ";
-    for (double hu : newHuMoments) {
-        logMessage += to_string(hu) + " ";
+    normalizarMomentosHu(newHuMoments);
+    vector<double> standardizedHuMoments = standardizeHuMoments(newHuMoments);
+
+    // Normalizar los Momentos Hu de la nueva imagen
+    //vector<double> normalizedNewHuMoments = normalizeHuMoments(newHuMoments, trainedHuMoments);
+
+    // Imprimir los Momentos Hu de la nueva imagen normalizados
+    string newHuMessage = "Momentos Hu normalizados de la nueva imagen: ";
+    for (double hu : standardizedHuMoments) {
+        newHuMessage += to_string(hu) + " ";
     }
-    LOGI("%s", logMessage.c_str());
-    // Verificar cuántos momentos de Hu entrenados hay
-    LOGI("Total de momentos entrenados cargados: %zu", trainedHuMoments.size());
-*/
+    LOGI("%s", newHuMessage.c_str());
+
     double bestDistance = numeric_limits<double>::max();
     string predictedCategory;
 
     for (size_t i = 0; i < trainedHuMoments.size(); i++) {
-        /*string comparisonMessage = "Comparando con categoria " + trainedLabels[i] + ": ";
-
+        // Imprimir los Momentos Hu de los entrenados
+        string trainedHuMessage = "Momentos Hu entrenados para la categoría " + trainedLabels[i] + ": ";
         for (double hu : trainedHuMoments[i]) {
-            comparisonMessage += to_string(hu) + " ";
+            trainedHuMessage += to_string(hu) + " ";
         }
-        LOGI("%s", comparisonMessage.c_str());
-*/
-        double distance = euclideanDistance(newHuMoments, trainedHuMoments[i]);
+        LOGI("%s", trainedHuMessage.c_str());
+
+        // Calcular la distancia euclidiana entre los momentos Hu normalizados
+        double distance = euclideanDistance(standardizedHuMoments, trainedHuMoments[i]);
+
+        // Imprimir la distancia calculada
+        LOGI("Distancia Euclidiana con la categoría %s: %f", trainedLabels[i].c_str(), distance);
+
         if (distance < bestDistance) {
             bestDistance = distance;
             predictedCategory = trainedLabels[i];
         }
     }
 
+    // Imprimir la categoría predicha
     LOGI("Categoría predicha: %s", predictedCategory.c_str());
     return predictedCategory;
 }
@@ -326,24 +356,6 @@ vector<pair<vector<double>, string>> loadDataset(const string& csvContent) {
 }
 
 // Clasificar una nueva imagen
-/*
-string classifyImageZERNIKE(const Mat& img, const vector<pair<vector<double>, string>>& dataset) {
-    vector<double> zernikeValues;
-    mb_zernike2D(img, 10, 50, zernikeValues);
-
-    double minDist = DBL_MAX;
-    string bestLabel;
-
-    for (const auto& entry : dataset) {
-        double dist = euclideanDistance(zernikeValues, entry.first);
-        if (dist < minDist) {
-            minDist = dist;
-            bestLabel = entry.second;
-        }
-    }
-    return bestLabel;
-}
-*/
 string classifyImageZERNIKE(const Mat& img, const vector<pair<vector<double>, string>>& dataset) {
     vector<double> zernikeValues;
     mb_zernike2D(img, 10, 50, zernikeValues);
@@ -379,7 +391,7 @@ string classifyImageZERNIKE(const Mat& img, const vector<pair<vector<double>, st
 }
 
 
-//------------------------------------------------------------------------------------------
+//----------------------------------APLICACION-------------------------------------------------------
 // Función JNI para clasificar la imagen usando los Momentos Hu
 extern "C" JNIEXPORT jstring    JNICALL
 Java_epautec_atlas_descriptoresapp_MainActivity_MomentsHU(
@@ -392,20 +404,25 @@ Java_epautec_atlas_descriptoresapp_MainActivity_MomentsHU(
     jbyte* buffer = env->GetByteArrayElements(imageData, nullptr);
     jsize length = env->GetArrayLength(imageData);
 
-
     if (buffer == nullptr) {
         return env->NewStringUTF("Error al recibir la imagen");
     }
 
     // Crear una Mat a partir del array de bytes
-    //Mat imageMat(1, length, CV_8UC1, buffer);  // Imagen en escala de grises
-    Mat imageMat = imdecode(Mat(1, length, CV_8UC1, buffer), IMREAD_GRAYSCALE);
+    std::vector<uchar> bufferVec(buffer, buffer + length);
+    env->ReleaseByteArrayElements(imageData, buffer, JNI_ABORT);
+
+    // Decodificar la imagen a cv::Mat (en formato color o escala de grises según sea necesario)
+    cv::Mat imageMat = cv::imdecode(bufferVec, cv::IMREAD_GRAYSCALE);
+    if (imageMat.empty()) {
+        return env->NewStringUTF("Error al decodificar la imagen");
+    }
+    //Mat imageMat = imdecode(Mat(1, length, CV_8UC1, buffer), IMREAD_GRAYSCALE);
 
     // Obtener el contenido del archivo CSV
     const char *csvChars = env->GetStringUTFChars(csvContent, nullptr);
     std::string csvString(csvChars);
     env->ReleaseStringUTFChars(csvContent, csvChars);
-
 
     // Cargar los momentos de Hu entrenados desde el contenido CSV
     vector<vector<double>> trainedHuMoments;
@@ -423,29 +440,6 @@ Java_epautec_atlas_descriptoresapp_MainActivity_MomentsHU(
     return env->NewStringUTF(category.c_str());
 }
 
-extern "C"
-JNIEXPORT jstring JNICALL
-Java_epautec_atlas_descriptoresapp_MainActivity_MomentsHUTEST(
-        JNIEnv* env, jobject, jbyteArray imageData, jstring csvContent) {
-
-    // Convierte el contenido del CSV a std::string
-    const char *csvChars = env->GetStringUTFChars(csvContent, nullptr);
-    std::string csvString(csvChars);
-    env->ReleaseStringUTFChars(csvContent, csvChars);
-
-    // Imprime el CSV recibido en Logcat
-    LOGI("Contenido CSV recibido:\n%s", csvString.c_str());
-
-    /*
-    // Separar el CSV en líneas
-    std::istringstream csvStream(csvString);
-    std::string line;
-    while (std::getline(csvStream, line)) {
-        LOGI("Línea CSV: %s", line.c_str());
-    }*/
-
-    return env->NewStringUTF("Depuración terminada");
-}
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -481,4 +475,49 @@ Java_epautec_atlas_descriptoresapp_MainActivity_MomentsZernike(
     return env->NewStringUTF(predictedLabel.c_str());
 }
 
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_epautec_atlas_descriptoresapp_SecondActivity_processImageNative(
+        JNIEnv *env,
+        jobject thiz,
+        jbyteArray imageData) {
+    // Obtener datos de la imagen
+    jsize dataSize = env->GetArrayLength(imageData);
+    if (dataSize == 0) {
+        LOGI("Error: imageData está vacío");
+        return env->NewByteArray(0);
+    }
+    LOGI("Tamaño de imageData: %d", dataSize);
+
+    jbyte *imageBytes = env->GetByteArrayElements(imageData, nullptr);
+    std::vector<uchar> buffer(imageBytes, imageBytes + dataSize);
+    env->ReleaseByteArrayElements(imageData, imageBytes, JNI_ABORT);
+
+    // Decodificar la imagen a cv::Mat
+    cv::Mat image = cv::imdecode(buffer, cv::IMREAD_COLOR);
+    if (image.empty()) {
+        LOGI("Error: No se pudo decodificar la imagen");
+        return env->NewByteArray(0);
+    }
+    LOGI("Imagen decodificada correctamente. Tamaño: %d x %d", image.cols, image.rows);
+
+    // (Aquí puedes aplicar procesamiento con OpenCV si es necesario)
+    //cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);  // Ejemplo de procesamiento
+    Mat processedImage = preprocessImage(image);
+
+    // Codificar la imagen procesada a PNG
+    std::vector<uchar> processedBuffer;
+    bool success = cv::imencode(".png", processedImage, processedBuffer);
+    if (!success || processedBuffer.empty()) {
+        LOGI("Error: No se pudo codificar la imagen procesada");
+        return env->NewByteArray(0);
+    }
+    LOGI("Imagen codificada correctamente. Tamaño del buffer: %lu", processedBuffer.size());
+
+    // Convertir std::vector<uchar> a jbyteArray para devolver a Java
+    jbyteArray processedData = env->NewByteArray(processedBuffer.size());
+    env->SetByteArrayRegion(processedData, 0, processedBuffer.size(), (jbyte*)processedBuffer.data());
+
+    return processedData;
+}
 
